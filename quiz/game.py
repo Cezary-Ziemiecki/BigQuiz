@@ -4,6 +4,8 @@ import collections.abc as collections
 from bson.objectid import ObjectId
 from pymongo.errors import InvalidName
 from pymongo.database import Database
+import requests
+import base64
 
 
 class UnchangedProperty(abc.ABC):
@@ -208,4 +210,19 @@ class Question:
             self.incorrect_answers = result['incorrect_answers']
             self.question_code = result['question_code']
 
+    def save_to_db(self, col):
+        x = self.db[col].insert_one(self.to_json())
+        self._id = ObjectId(x.inserted_id)
+
+    def to_json(self):
+        return {'question': self.question, 'category': self.category, 'correct_answer': self.correct_answer, 'incorrect_answers': self.incorrect_answers, 'question_code': self.question_code}
+
     def load_new_question(self):
+        api_url = "https://opentdb.com/api.php?amount=1&category=17&difficulty=easy&type=multiple"
+        response = requests.get(api_url).json()['results'][0]
+        self.category = response['category']
+        self.question = response['question']
+        self.correct_answer = response['correct_answer']
+        self.incorrect_answers = response['incorrect_answers']
+        coded = base64.b64encode(response['question'].encode()).decode()
+        self.question_code = coded[:2]+coded[-5:-2]

@@ -1,27 +1,17 @@
+from constants import MONGO_DB_URI, MONGO_DB_NAME
 import json
 from app.quiz.records import User, Game, Question
 from flask import Blueprint, Response
 from pymongo.mongo_client import MongoClient
 from .models import Quiz
 from functools import partial
-
+from app.libs.tools import print_game_state
 blueprint = Blueprint('quiz', __name__)
-uri = "mongodb+srv://manager:manager2000@bigquiz.5ex4d.mongodb.net/?retryWrites=true&w=majority&appName=BigQuiz"
-myclient = MongoClient(uri)
-mydb = myclient["BIGQUIZ"]
+
+myclient = MongoClient(MONGO_DB_URI)
+mydb = myclient[MONGO_DB_NAME]
+
 quiz = Quiz(mydb)
-
-
-def print_game_state(func, quiz):
-    def inner(*args, **kwargs):
-        print(
-            f"Before: {quiz.current_question} | {quiz._score} | {quiz._users_answers} | {quiz._order} | {quiz._shuffled_answers}")
-        output = func(*args, **kwargs)
-        print(
-            f"After: {quiz.current_question} | {quiz._score} | {quiz._users_answers} | {quiz._order} | {quiz._shuffled_answers}")
-        return output
-    inner.__name__ = func.__name__
-    return inner
 
 
 quiz_state = partial(print_game_state, quiz=quiz)

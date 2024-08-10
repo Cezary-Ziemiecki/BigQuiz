@@ -74,7 +74,6 @@ class IterableStorage(abc.ABC):
         except Exception as e:
             print(e)
         else:
-            print(self.storage, value)
             self.storage.append(value)
 
     @abc.abstractmethod

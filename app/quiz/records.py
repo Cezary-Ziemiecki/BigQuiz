@@ -5,6 +5,7 @@ from pymongo.database import Database
 import requests
 import base64
 from app.libs.types import UnchangedTypedPropert, MongoIdList
+import random
 
 
 class MongoRecordAdapter(abc.ABC):
@@ -34,15 +35,15 @@ class MongoRecordAdapter(abc.ABC):
 
 class Game(MongoRecordAdapter):
     winner = UnchangedTypedPropert(ObjectId)
-    game_time = UnchangedTypedPropert(datetime.time)
+    game_time = UnchangedTypedPropert(datetime.datetime)
 
     def __init__(self, db, games_col='games', users_col='users', guestions_col='questions') -> None:
         super().__init__(db)
         self._users = MongoIdList()
         self._users.set_collection(self.db[users_col])
         self.questions = []
+        self.score = []
         self.is_finished = False
-        self.successes = []
 
     @property
     def users(self):
@@ -53,7 +54,6 @@ class Game(MongoRecordAdapter):
         instance = cls(db, games_col, users_col, guestions_col)
         instance._id = _id
         instance.load_from_db(games_col)
-        print(instance.questions)
         return instance
 
     def load_from_db(self, col):
@@ -68,21 +68,27 @@ class Game(MongoRecordAdapter):
             if result['winner'] != self.winner:
                 self.winner = result['winner']
             self.questions = result['questions']
-            self.successes = result['successes']
+            self.score = result['score']
 
     @classmethod
     def load_by_users(cls, db, users, col):
         result = list(db[col].find(
-            {'users': {'$all': users}}))
+            {'users': {'$all': users}}))   # Find query to find only identic users list
+        for game in result:
+            if set(result[0]['users']) == set(users):
+                return cls.load_by_id(db, result[0]['_id'])
+        else:
+            return False
+
+    def save_to_db(self, col):
         try:
-            print(result[0])
-            return cls.load_by_id(db, result[0]['_id'])
-        except Exception as e:
-            print(e)
-            raise e
+            self.game_time = datetime.datetime.now()
+        except AttributeError:
+            print('Game saved again')
+        return super().save_to_db(col)
 
     def to_json(self):
-        return {'date': self.game_time, 'users': list(self.users), 'questions': self.questions, 'winner': self.winner, 'is_finished': self.is_finished, 'successes': self.successes}
+        return {'date': self.game_time, 'users': list(self.users), 'questions': self.questions, 'winner': self.winner, 'is_finished': self.is_finished, 'score': self.score}
 
 
 class User(MongoRecordAdapter):
@@ -126,11 +132,12 @@ class User(MongoRecordAdapter):
         result = list(db[col].find(
             {'name': name}))
         try:
-            print(result[0])
             return cls.load_by_id(db, result[0]['_id'])
         except Exception as e:
-            print(e)
-            raise e
+            new_user = cls(db)
+            new_user.name = name
+            new_user.save_to_db(col)
+            return new_user
 
 
 class Question(MongoRecordAdapter):
@@ -166,11 +173,30 @@ class Question(MongoRecordAdapter):
         return {'question': self.question, 'category': self.category, 'correct_answer': self.correct_answer, 'incorrect_answers': self.incorrect_answers, 'question_code': self.question_code}
 
     def load_new_question(self):
-        api_url = "https://opentdb.com/api.php?amount=1&category=17&difficulty=easy&type=multiple"
+        api_url = "https://opentdb.com/api.php?amount=1&type=multiple"
         response = requests.get(api_url).json()['results'][0]
         self.category = response['category']
         self.question = response['question']
         self.correct_answer = response['correct_answer']
         self.incorrect_answers = response['incorrect_answers']
         coded = base64.b64encode(response['question'].encode()).decode()
-        self.question_code = coded[:2]+coded[-5:-2]
+        self.question_code = coded[1:5]+coded[-8:-4]
+
+    @classmethod
+    def get_unknown_question(cls, db, questions, col):
+        result = list(db[col].find(
+            {"question_code": {'$nin': questions}}))
+        try:
+            random_question = random.choice(result)
+        except Exception as e:
+            print('EEEEE', e)
+            new_question = cls(db)
+            new_question.load_new_question()
+            new_question.save_to_db(col)
+        else:
+            new_question = cls.load_by_id(db, random_question['_id'])
+        finally:
+            return new_question
+
+    def __str__(self) -> str:
+        return self.question_code

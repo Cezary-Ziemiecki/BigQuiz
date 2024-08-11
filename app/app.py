@@ -7,7 +7,6 @@ from .web import blueprint as web_blueprint
 template_dir = os.path.abspath('app/templates')
 static_dir = os.path.abspath('app/static')
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
-# app.config['SECRET_KEY'] = 'xxxx'
 
 app.register_blueprint(web_blueprint)
 app.register_blueprint(quiz_blueprint, url_prefix='/quiz')

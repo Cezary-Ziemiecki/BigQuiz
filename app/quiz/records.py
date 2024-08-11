@@ -508,7 +508,7 @@ class Question(MongoRecordAdapter):
 
     @classmethod
     def get_unknown_question(cls, db, questions, col):
-        """_summary_
+        """
             Alternative constructor for record containing question not contained in list
         Parameters
         ----------
